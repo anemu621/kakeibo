@@ -29,7 +29,7 @@
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);font-family:'Zen Kaku Gothic New','Hiragino Sans',sans-serif;color:var(--ink);
     padding-bottom:env(safe-area-inset-bottom);}
-  header{padding:24px 20px 16px;background:#2B2B28;}
+  header{padding:calc(env(safe-area-inset-top) + 20px) 20px 16px;background:#2B2B28;}
   header .row{display:flex;align-items:center;gap:8px;}
   header h1{font-family:'Zen Maru Gothic',sans-serif;font-size:19px;font-weight:700;color:var(--bg);margin:0;letter-spacing:.02em;}
   header p{font-size:12px;color:#9A9587;margin:4px 0 0;}
