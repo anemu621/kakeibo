@@ -59,6 +59,9 @@
 
   .iconbtn{background:none;border:none;padding:4px;opacity:.6;cursor:pointer;}
   .iconbtn:hover{opacity:1;}
+  .move-btns{display:flex;flex-direction:column;gap:2px;}
+  .movebtn{background:none;border:none;padding:0;font-size:11px;line-height:1;color:var(--muted2);cursor:pointer;}
+  .movebtn:disabled{opacity:.25;cursor:default;}
   .footer-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0;font-size:13px;background:none;border:none;font-family:inherit;cursor:pointer;}
   .footer-btn.green{color:var(--green);}
   .footer-btn.muted{color:var(--muted);}
@@ -80,7 +83,7 @@
   .totals-line.result .label{color:var(--ink);}
 
   .period-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
-  .period-nav .navbtn{background:var(--card);border:1px solid var(--border);border-radius:999px;padding:6px;cursor:pointer;}
+  .navbtn{background:var(--card);border:1px solid var(--border);border-radius:999px;padding:6px 10px;cursor:pointer;font-size:15px;color:var(--ink);font-family:inherit;}
   .period-nav .label{font-size:14px;font-weight:500;display:flex;align-items:center;gap:6px;}
 
   .recent-list button{width:100%;display:flex;justify-content:space-between;padding:8px 12px;font-size:13px;background:var(--card);border:none;border-top:1px solid var(--divider);font-family:inherit;cursor:pointer;color:var(--ink);}
@@ -107,7 +110,11 @@
   <!-- 日別 -->
   <div id="panel-daily">
     <div class="rowline">
-      <input type="date" id="date-picker">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="navbtn" onclick="shiftDay(-1)">‹</button>
+        <input type="date" id="date-picker">
+        <button class="navbtn" onclick="shiftDay(1)">›</button>
+      </div>
       <span class="muted">この日の合計 <span class="total-strong" id="daily-total">¥0</span></span>
     </div>
     <div class="card" id="daily-cats"></div>
@@ -239,6 +246,10 @@ function renderDaily(){
     row.className = "cat-row";
     if(editingCats){
       row.innerHTML = `
+        <div class="move-btns">
+          <button class="movebtn" data-move-up="${idx}" ${idx===0?"disabled":""}>▲</button>
+          <button class="movebtn" data-move-down="${idx}" ${idx===categories.length-1?"disabled":""}>▼</button>
+        </div>
         <input class="catname-input" value="${escapeAttr(cat)}" placeholder="カテゴリ名を入力" data-idx="${idx}">
         <button class="iconbtn" data-remove="${idx}">🗑</button>`;
     } else {
@@ -275,6 +286,24 @@ function renderDaily(){
         categories = categories.filter((_,i)=>i!==idx);
         Object.keys(dailyEntries).forEach(d=>{ delete dailyEntries[d][removed]; });
         renderDaily();
+      });
+    });
+    wrap.querySelectorAll("[data-move-up]").forEach(btn=>{
+      btn.addEventListener("click", e=>{
+        const idx = +e.target.dataset.moveUp;
+        if(idx>0){
+          [categories[idx-1], categories[idx]] = [categories[idx], categories[idx-1]];
+          renderDaily();
+        }
+      });
+    });
+    wrap.querySelectorAll("[data-move-down]").forEach(btn=>{
+      btn.addEventListener("click", e=>{
+        const idx = +e.target.dataset.moveDown;
+        if(idx<categories.length-1){
+          [categories[idx+1], categories[idx]] = [categories[idx], categories[idx+1]];
+          renderDaily();
+        }
       });
     });
     document.getElementById("add-cat").addEventListener("click", ()=>{ categories.push(""); renderDaily(); });
@@ -332,6 +361,14 @@ document.getElementById("date-picker").addEventListener("change", e=>{
   renderDaily();
 });
 
+function shiftDay(delta){
+  const [y,m,d] = selectedDate.split("-").map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate() + delta);
+  selectedDate = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  renderDaily();
+}
+
 /* ---------- monthly panel ---------- */
 function getPeriodData(pk){ return periods[pk] || emptyPeriodData(); }
 function setPeriodSection(pk, section, rows){
@@ -361,6 +398,10 @@ function renderSection(containerId, title, tapeColor, section, unitLabel){
     const row = document.createElement("div");
     row.className = "cat-row";
     row.innerHTML = `
+      <div class="move-btns">
+        <button class="movebtn" data-move-up="${idx}" ${idx===0?"disabled":""}>▲</button>
+        <button class="movebtn" data-move-down="${idx}" ${idx===rows.length-1?"disabled":""}>▼</button>
+      </div>
       <input class="ledger-input left" style="flex:1;" placeholder="項目名" value="${escapeAttr(r.label)}" data-field="label" data-idx="${idx}">
       <input class="ledger-input" style="width:96px;" type="number" inputmode="decimal" placeholder="0" value="${r.amount}" data-field="amount" data-idx="${idx}">
       <button class="iconbtn" data-remove="${idx}">🗑</button>`;
@@ -391,6 +432,28 @@ function renderSection(containerId, title, tapeColor, section, unitLabel){
       setPeriodSection(periodKey, section, rows);
       renderSection(containerId, title, tapeColor, section, unitLabel);
       renderTotals();
+    });
+  });
+  rowsWrap.querySelectorAll("[data-move-up]").forEach(btn=>{
+    btn.addEventListener("click", e=>{
+      const idx = +e.target.dataset.moveUp;
+      const rows = getPeriodData(periodKey)[section];
+      if(idx>0){
+        [rows[idx-1], rows[idx]] = [rows[idx], rows[idx-1]];
+        setPeriodSection(periodKey, section, rows);
+        renderSection(containerId, title, tapeColor, section, unitLabel);
+      }
+    });
+  });
+  rowsWrap.querySelectorAll("[data-move-down]").forEach(btn=>{
+    btn.addEventListener("click", e=>{
+      const idx = +e.target.dataset.moveDown;
+      const rows = getPeriodData(periodKey)[section];
+      if(idx<rows.length-1){
+        [rows[idx+1], rows[idx]] = [rows[idx], rows[idx+1]];
+        setPeriodSection(periodKey, section, rows);
+        renderSection(containerId, title, tapeColor, section, unitLabel);
+      }
     });
   });
   addBtn.addEventListener("click", ()=>{
