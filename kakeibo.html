@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="家計簿">
 <link rel="apple-touch-icon" href="icon.png">
-<title>家計ノート</title>
+<title>家計簿</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
 
@@ -91,12 +91,20 @@
 
   textarea#memo{width:100%;min-height:60vh;border-radius:8px;padding:12px;font-size:14px;outline:none;background:var(--card);border:1px solid var(--border);color:var(--ink);line-height:1.8;font-family:inherit;resize:vertical;}
   .memo-hint{font-size:13px;color:var(--muted);margin-bottom:8px;}
+
+  .calc-display{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:24px 16px;text-align:right;font-size:38px;font-weight:500;font-variant-numeric:tabular-nums;margin-bottom:12px;overflow-x:auto;white-space:nowrap;color:var(--ink);}
+  .calc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+  .calc-btn{width:100%;height:64px;border:1px solid var(--border);border-radius:8px;background:var(--card);font-size:20px;font-family:inherit;color:var(--ink);cursor:pointer;}
+  .calc-btn:active{background:var(--divider);}
+  .calc-op{background:var(--blue-soft);color:var(--ink);}
+  .calc-fn{background:var(--divider);color:var(--muted);font-size:16px;}
+  .calc-eq{background:var(--coral);color:#fff;}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="row">📔<h1>家計ノート</h1></div>
+  <div class="row">📔<h1>家計簿</h1></div>
   <p>手書き家計簿をそのままアプリに</p>
 </header>
 
@@ -104,6 +112,7 @@
   <button id="tab-daily" class="active" onclick="switchTab('daily')">日別</button>
   <button id="tab-monthly" onclick="switchTab('monthly')">月次</button>
   <button id="tab-memo" onclick="switchTab('memo')">メモ</button>
+  <button id="tab-calc" onclick="switchTab('calc')">電卓</button>
 </div>
 
 <main>
@@ -119,10 +128,6 @@
     </div>
     <div class="card" id="daily-cats"></div>
 
-    <div id="recent-wrap" class="section hidden">
-      <div class="muted" style="margin-bottom:8px;">最近の記録</div>
-      <div class="card recent-list" id="recent-list"></div>
-    </div>
   </div>
 
   <!-- 月次 -->
@@ -159,6 +164,36 @@
   <div id="panel-memo" class="hidden">
     <div class="memo-hint">自由に書けるメモです。買いたいもの、来月への申し送りなど何でもどうぞ</div>
     <textarea id="memo" placeholder="ここにメモを入力…"></textarea>
+  </div>
+
+  <!-- 電卓 -->
+  <div id="panel-calc" class="hidden">
+    <div class="calc-display" id="calc-display">0</div>
+    <div class="calc-grid">
+      <button class="calc-btn calc-fn" data-calc="clear">C</button>
+      <button class="calc-btn calc-fn" data-calc="backspace">⌫</button>
+      <button class="calc-btn calc-fn" data-calc="percent">%</button>
+      <button class="calc-btn calc-op" data-calc="op" data-op="÷">÷</button>
+
+      <button class="calc-btn" data-calc="digit" data-digit="7">7</button>
+      <button class="calc-btn" data-calc="digit" data-digit="8">8</button>
+      <button class="calc-btn" data-calc="digit" data-digit="9">9</button>
+      <button class="calc-btn calc-op" data-calc="op" data-op="×">×</button>
+
+      <button class="calc-btn" data-calc="digit" data-digit="4">4</button>
+      <button class="calc-btn" data-calc="digit" data-digit="5">5</button>
+      <button class="calc-btn" data-calc="digit" data-digit="6">6</button>
+      <button class="calc-btn calc-op" data-calc="op" data-op="−">−</button>
+
+      <button class="calc-btn" data-calc="digit" data-digit="1">1</button>
+      <button class="calc-btn" data-calc="digit" data-digit="2">2</button>
+      <button class="calc-btn" data-calc="digit" data-digit="3">3</button>
+      <button class="calc-btn calc-op" data-calc="op" data-op="+">+</button>
+
+      <button class="calc-btn" data-calc="digit" data-digit="0" style="grid-column:span 2;">0</button>
+      <button class="calc-btn" data-calc="dot">.</button>
+      <button class="calc-btn calc-eq" data-calc="equals">=</button>
+    </div>
   </div>
 </main>
 
@@ -220,7 +255,7 @@ let periodKey = periodKeyForDate(todayStr());
 
 /* ---------- tabs ---------- */
 function switchTab(tab){
-  ["daily","monthly","memo"].forEach(t=>{
+  ["daily","monthly","memo","calc"].forEach(t=>{
     document.getElementById("panel-"+t).classList.toggle("hidden", t!==tab);
     document.getElementById("tab-"+t).classList.toggle("active", t===tab);
   });
@@ -328,32 +363,12 @@ function renderDaily(){
   }
 
   updateDailyTotal();
-  renderRecent();
 }
 
 function updateDailyTotal(){
   const entry = dailyEntries[selectedDate] || {};
   const total = Object.values(entry).reduce((s,v)=>s+(parseFloat(v)||0),0);
   document.getElementById("daily-total").textContent = yen(total);
-}
-
-function renderRecent(){
-  const dates = Object.keys(dailyEntries)
-    .filter(d => Object.values(dailyEntries[d]||{}).some(v=>parseFloat(v)>0))
-    .sort((a,b)=> a<b?1:-1)
-    .slice(0,7);
-  const wrap = document.getElementById("recent-wrap");
-  const list = document.getElementById("recent-list");
-  if(dates.length===0){ wrap.classList.add("hidden"); return; }
-  wrap.classList.remove("hidden");
-  list.innerHTML = "";
-  dates.forEach(d=>{
-    const total = Object.values(dailyEntries[d]).reduce((s,v)=>s+(parseFloat(v)||0),0);
-    const btn = document.createElement("button");
-    btn.innerHTML = `<span>${d}</span><span style="color:var(--muted);font-variant-numeric:tabular-nums;">${yen(total)}</span>`;
-    btn.addEventListener("click", ()=>{ selectedDate = d; renderDaily(); });
-    list.appendChild(btn);
-  });
 }
 
 document.getElementById("date-picker").addEventListener("change", e=>{
@@ -536,6 +551,73 @@ memoEl.addEventListener("input", e=>{
 
 /* ---------- utils ---------- */
 function escapeAttr(s){ return String(s??"").replace(/"/g,"&quot;"); }
+
+/* ---------- calculator ---------- */
+let calcDisplayVal = "0";
+let calcPrevVal = null;
+let calcOperator = null;
+let calcWaitingForSecond = false;
+
+const calcDisplayEl = document.getElementById("calc-display");
+
+function calcUpdateDisplay(){
+  calcDisplayEl.textContent = calcDisplayVal;
+}
+function calcCompute(a, b, op){
+  a = parseFloat(a); b = parseFloat(b);
+  switch(op){
+    case "+": return a + b;
+    case "−": return a - b;
+    case "×": return a * b;
+    case "÷": return b === 0 ? 0 : a / b;
+    default: return b;
+  }
+}
+function calcFormat(n){
+  if(!isFinite(n)) return "0";
+  let s = String(Math.round(n * 1e10) / 1e10);
+  if(s.length > 12) s = parseFloat(n.toPrecision(10)).toString();
+  return s;
+}
+
+document.querySelectorAll("[data-calc]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const kind = btn.dataset.calc;
+    if(kind === "digit"){
+      const d = btn.dataset.digit;
+      if(calcWaitingForSecond || calcDisplayVal === "0"){
+        calcDisplayVal = d;
+        calcWaitingForSecond = false;
+      } else {
+        calcDisplayVal += d;
+      }
+    } else if(kind === "dot"){
+      if(calcWaitingForSecond){ calcDisplayVal = "0."; calcWaitingForSecond = false; }
+      else if(!calcDisplayVal.includes(".")) calcDisplayVal += ".";
+    } else if(kind === "clear"){
+      calcDisplayVal = "0"; calcPrevVal = null; calcOperator = null; calcWaitingForSecond = false;
+    } else if(kind === "backspace"){
+      calcDisplayVal = calcDisplayVal.length > 1 ? calcDisplayVal.slice(0,-1) : "0";
+    } else if(kind === "percent"){
+      calcDisplayVal = calcFormat(parseFloat(calcDisplayVal) / 100);
+    } else if(kind === "op"){
+      if(calcPrevVal !== null && !calcWaitingForSecond){
+        calcPrevVal = calcFormat(calcCompute(calcPrevVal, calcDisplayVal, calcOperator));
+        calcDisplayVal = calcPrevVal;
+      } else {
+        calcPrevVal = calcDisplayVal;
+      }
+      calcOperator = btn.dataset.op;
+      calcWaitingForSecond = true;
+    } else if(kind === "equals"){
+      if(calcOperator !== null && calcPrevVal !== null){
+        calcDisplayVal = calcFormat(calcCompute(calcPrevVal, calcDisplayVal, calcOperator));
+        calcPrevVal = null; calcOperator = null; calcWaitingForSecond = false;
+      }
+    }
+    calcUpdateDisplay();
+  });
+});
 
 /* ---------- init ---------- */
 renderDaily();
