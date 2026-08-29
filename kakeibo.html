@@ -109,6 +109,13 @@
   <p>手書き家計簿をそのままアプリに</p>
 </header>
 
+<div class="backup-row" style="display:flex;gap:8px;padding:12px 20px 0;">
+  <button class="footer-btn muted" style="border:1px solid var(--border);border-radius:8px;" onclick="exportKakeiboData()">📤 バックアップを書き出す</button>
+  <label class="footer-btn muted" style="border:1px solid var(--border);border-radius:8px;display:block;text-align:center;">📥 読み込む
+    <input type="file" accept="application/json" id="kakeibo-import-input" style="display:none;">
+  </label>
+</div>
+
 <div class="tabs">
   <button id="tab-daily" class="active" onclick="switchTab('daily')">日別</button>
   <button id="tab-monthly" onclick="switchTab('monthly')">月次</button>
@@ -215,6 +222,61 @@ let categories = LS.get("kakeibo:settings", {categories: DEFAULT_CATEGORIES}).ca
 let dailyEntries = LS.get("kakeibo:daily-entries", {});
 let periods = LS.get("kakeibo:periods", {});
 let memo = LS_TEXT.get("kakeibo:memo", "");
+
+/* ---------- backup export/import ---------- */
+function exportKakeiboData(){
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    settings: { categories },
+    dailyEntries,
+    periods,
+    memo
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "kakeibo-backup-" + new Date().toISOString().slice(0,10) + ".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
+async function importKakeiboDataFromFile(file){
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if(data.settings && data.settings.categories){
+      categories = data.settings.categories;
+      LS.set("kakeibo:settings", {categories});
+    }
+    if(data.dailyEntries){
+      dailyEntries = Object.assign({}, dailyEntries, data.dailyEntries);
+      LS.set("kakeibo:daily-entries", dailyEntries);
+    }
+    if(data.periods){
+      periods = Object.assign({}, periods, data.periods);
+      LS.set("kakeibo:periods", periods);
+    }
+    if(typeof data.memo === "string"){
+      memo = data.memo;
+      LS_TEXT.set("kakeibo:memo", memo);
+      const memoEl2 = document.getElementById("memo");
+      if(memoEl2) memoEl2.value = memo;
+    }
+    renderDaily();
+    if(!document.getElementById("panel-monthly").classList.contains("hidden")) renderMonthly();
+    alert("読み込みが完了しました");
+  }catch(e){
+    alert("読み込みに失敗しました。ファイルを確認してください。");
+  }
+}
+document.getElementById("kakeibo-import-input").addEventListener("change", (e)=>{
+  const file = e.target.files && e.target.files[0];
+  if(file) importKakeiboDataFromFile(file);
+  e.target.value = "";
+});
+
 let editingCats = false;
 
 /* ---------- date / period helpers ---------- */
